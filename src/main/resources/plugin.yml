@@ -1,0 +1,11 @@
+name: Ranks
+version: '${project.version}'
+main: me.felix.ranks.Ranks
+api-version: 1.19
+authors: [ Felix ]
+description: Rank System
+commands:
+    rank:
+        description: Rank System
+        usage: /rank
+        aliases: [ r ]
