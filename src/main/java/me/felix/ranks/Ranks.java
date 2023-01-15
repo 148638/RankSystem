@@ -1,5 +1,9 @@
 package me.felix.ranks;
 
+import net.md_5.bungee.api.chat.ClickEvent;
+import net.md_5.bungee.api.chat.ComponentBuilder;
+import net.md_5.bungee.api.chat.HoverEvent;
+import net.md_5.bungee.api.chat.TextComponent;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.command.Command;
@@ -14,10 +18,7 @@ import org.bukkit.permissions.PermissionAttachment;
 import org.bukkit.permissions.PermissionAttachmentInfo;
 import org.bukkit.plugin.java.JavaPlugin;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 public final class Ranks extends JavaPlugin implements Listener {
 
@@ -61,6 +62,7 @@ public final class Ranks extends JavaPlugin implements Listener {
                 completions.add("edit");
                 completions.add("reload");
                 completions.add("help");
+                completions.add("color");
             } else if (args.length == 2) {
                 if (args[0].equalsIgnoreCase("delete") || args[0].equalsIgnoreCase("list") || args[0].equalsIgnoreCase("edit")) {
                     completions.addAll(config.getConfigurationSection("ranks").getKeys(false));
@@ -100,6 +102,8 @@ public final class Ranks extends JavaPlugin implements Listener {
         return completions;
     }
 
+    String[] alliases = {"rank", "ranks:rank", "ranks:r", "r"};
+
     // Command
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
@@ -107,7 +111,7 @@ public final class Ranks extends JavaPlugin implements Listener {
             sender.sendMessage(ChatColor.RED + "You do not have permission!");
             return true;
         }
-        if (label.equalsIgnoreCase("rank") || label.equalsIgnoreCase("r")) {
+        if (Arrays.stream(alliases).anyMatch(label::equalsIgnoreCase)) {
             if (args.length == 0) {
                 sender.sendMessage(ChatColor.RED + "Usage: /rank <add|delete|list|set>");
                 return true;
@@ -254,23 +258,31 @@ public final class Ranks extends JavaPlugin implements Listener {
             //      /Rank list & /Rank list <name>
             else if (args[0].equalsIgnoreCase("list")) {
                 if (args.length == 1) {
+                    breakLine(sender);
                     sender.sendMessage(ChatColor.GOLD + "" + ChatColor.BOLD + "Ranks:");
                     for (String rank : config.getConfigurationSection("ranks").getKeys(false)) {
                         // Get color
                         String color = config.getString("ranks." + rank + ".color");
-                        sender.sendMessage(color + rank);
+                        // Clickable message
+                        TextComponent message = new TextComponent(ChatColor.translateAlternateColorCodes('&', "- " + color + rank));
+                        message.setClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/rank list " + rank));
+                        message.setHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, new ComponentBuilder(ChatColor.YELLOW + "Click to view rank info").create()));
+                        sender.spigot().sendMessage(message);
                     }
+                    breakLine(sender);
                     return true;
                 } else if (args.length == 2) {
                     String name = args[1];
                     // Check if rank exists in config.yml file
                     if (config.contains("ranks." + name)) {
                         String color = config.getString("ranks." + name + ".color");
+                        breakLine(sender);
                         sender.sendMessage(ChatColor.GOLD + "" + ChatColor.BOLD + name + ":");
                         sender.sendMessage(ChatColor.YELLOW + "" + ChatColor.BOLD + "Prefix: " + ChatColor.RESET + "" + color + config.getString("ranks." + name + ".prefix"));
                         sender.sendMessage(ChatColor.YELLOW + "" + ChatColor.BOLD + "Permissions: " + ChatColor.RESET + "" + config.getString("ranks." + name + ".permissions"));
                         // Display all players in rank
                         sender.sendMessage(ChatColor.YELLOW + "" + ChatColor.BOLD + "Players: " + ChatColor.RESET + "" + getPlayersInRank(name));
+                        breakLine(sender);
                         return true;
                     } else {
                         sender.sendMessage(ChatColor.RED + "Rank " + name + " does not exist!");
@@ -297,6 +309,7 @@ public final class Ranks extends JavaPlugin implements Listener {
                             // Get color
                             String color = config.getString("ranks." + rank + ".color");
                             sender.sendMessage(ChatColor.YELLOW + "Player " + player + " rank set to " + color + rank);
+                            Bukkit.getPlayer(player).sendMessage(ChatColor.YELLOW + "Your rank has been set to " + color + rank);
                             // Set player prefix
                             Player target = Bukkit.getPlayer(player);
                             updatePlayer(target);
@@ -323,20 +336,47 @@ public final class Ranks extends JavaPlugin implements Listener {
                 return true;
             } else if (args[0].equalsIgnoreCase("help")) {
                 sender.sendMessage(ChatColor.GOLD + "" + ChatColor.BOLD + "Rank Help:");
-                sender.sendMessage(ChatColor.YELLOW + "/rank create <name> <prefix> <color>");
+                sender.sendMessage(ChatColor.YELLOW + "/rank add <name> <prefix> <permission> <color>");
                 sender.sendMessage(ChatColor.YELLOW + "/rank edit <name> <prefix|permissions|color> <?new value>");
-                sender.sendMessage(ChatColor.YELLOW + "/rank delete <name>");
-                sender.sendMessage(ChatColor.YELLOW + "/rank list <name>");
                 sender.sendMessage(ChatColor.YELLOW + "/rank set <player> <rank>");
+                sender.sendMessage(ChatColor.YELLOW + "/rank delete <name>");
+                sender.sendMessage(ChatColor.YELLOW + "/rank list <?name>");
+                // Clickable message for color showing you all the minecraft color codes in chat
+                TextComponent message = new TextComponent(ChatColor.YELLOW + "/rank color");
+                message.setClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/rank color"));
+                message.setHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, new ComponentBuilder(ChatColor.YELLOW + "Click to view all the color codes").create()));
+                sender.spigot().sendMessage(message);
                 sender.sendMessage(ChatColor.YELLOW + "/rank reload");
                 return true;
+            } else if (args[0].equalsIgnoreCase("color")) {
+                breakLine(sender);
+                sender.sendMessage(ChatColor.GOLD + "" + ChatColor.BOLD + "Color Codes:");
+                breakLine(sender);
+                // Loop through all the color codes
+                for (ChatColor color : ChatColor.values()) {
+                    // Check if the color is a color
+                    if (color.isColor()) {
+                        // Clickable message for color showing you all the minecraft color codes in chat
+                        // Make sure the colon is always in the same place for each color
+                        TextComponent message = new TextComponent(ChatColor.YELLOW + color.name() + " : " + color + color.getChar());
+                        message.setClickEvent(new ClickEvent(ClickEvent.Action.SUGGEST_COMMAND, "" + color.getChar()));
+                        message.setHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, new ComponentBuilder(ChatColor.YELLOW + "Click to copy color code for color " + color + color.name()).create()));
+                        sender.spigot().sendMessage(message);
+                    }
+                }
+                breakLine(sender);
+                return true;
             } else {
-                sender.sendMessage(ChatColor.RED + "Usage: /rank <create|edit|delete|list|set|reload|help>");
+                sender.sendMessage(ChatColor.RED + "Usage: /rank <add|edit|set|delete|list|reload|help|color>");
                 return true;
             }
             return true;
         }
-        return false;
+        return true;
+    }
+
+    private void breakLine(CommandSender sender) {
+        sender.sendMessage(ChatColor.WHITE + "-----------------------");
     }
 
     private List<String> getPlayersInRank(String name) {
@@ -363,7 +403,7 @@ public final class Ranks extends JavaPlugin implements Listener {
         // Old perms
         String oldRank = config.getString("players." + player.getName() + ".oldrank");
         List<String> oldPerms = config.getStringList("ranks." + oldRank + ".permissions");
-        for (String perm: oldPerms) {
+        for (String perm : oldPerms) {
             // Remove the attachment from the player using string perm
             player.addAttachment(this, perm, false);
         }
